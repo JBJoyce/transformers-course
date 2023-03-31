@@ -14,7 +14,8 @@ from utils import time_to_sample_conv
 
 
 class Audio_File:
-    
+    """ Container class for complete audio file
+    """
     def __init__(self, path: str) -> None:
         self.path = path
         self.waveform, self.sample_rate = torchaudio.load(self.path)
@@ -22,7 +23,8 @@ class Audio_File:
             
                            
 class Annotations_File:
-    
+    """ Class for storing label annotations in JSON format from prodigy
+    """
     def __init__(self, path: str) -> None:
         self.path = path
         self.annos = self._load_annos()   
@@ -36,7 +38,9 @@ class Annotations_File:
         
 
 class Slicer:
-    
+    """ Given audio and annotations file, create 1 second audio snippets with appropiate label
+    and seperate 80/20 into train/test split for use in Hugging Face Datasets module
+    """
      
     def __init__(self, audio: Audio_File, annotations: Annotations_File, label2id: dict) -> None:
         self.audio = audio
@@ -54,7 +58,9 @@ class Slicer:
         return len(self.on_samples)
     
     
-    def _create_spans(self): 
+    def _create_spans(self):
+        """ Using annotation data, calculate and return frames of interest
+        """ 
         spans = torch.zeros_like(self.audio.waveform)
         for dict in self.annotations.annos:
             tuple_of_secs = tuple(v for k, v in dict.items() if k in ['start', 'end'])
@@ -67,12 +73,20 @@ class Slicer:
     
     
     def slicer(self, dir: Union[str, pathlib.Path], count: float, units:str='seconds') -> None:
+        """
+        Places audio snippets of desired length into desired directory while updating metadata file regarding proper class label
+        Args:
+            dir (Union[str, pathlib.Path]): desired directory to place train/test datasets
+            count (float): quantity of units to slice
+            units (str, optional): Desired time units, either samples or seconds. Defaults to 'seconds'.
+
+        """
         dir = pathlib.Path(dir)
         self._create_file_structure_if_neccessary(dir)
         
-        if units == "seconds":
+        if units == 'seconds':
             frames_to_slice = int(count * 16000)
-        elif units == "samples":
+        elif units == 'samples':
             frames_to_slice = int(count)
         else:
             raise Exception('please select either "seconds" or "samples"')
@@ -101,6 +115,15 @@ class Slicer:
                     
             
     def _check_for_label(self, start: int, stop: int) -> str:
+        """ If single frame has label of interest returns positive label, otherwise negative
+
+        Args:
+            start (int): start frame
+            stop (int): stop frame
+
+        Returns:
+            str: class label as string
+        """
         if np.argmax(self.on_samples[0, start:stop]):
             return self.id2label[1]
         else:
@@ -131,7 +154,7 @@ class Slicer:
                         )
         
                 
-    def _add_metadata(self,dir:pathlib, snippet_path:pathlib.Path, label:str, csv_container:list[Any]) -> None:
+    def _add_metadata(self,dir:pathlib.Path, snippet_path:pathlib.Path, label:str, csv_container:list[Any]) -> None:
         comparison_path = pathlib.Path(dir, 'dataset')
         relative_path = snippet_path.relative_to(comparison_path)
         file_and_label = {'file_name': str(relative_path), 'label':label2id[label]}
